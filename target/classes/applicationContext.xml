@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:aop="http://www.springframework.org/schema/aop"
+	   xmlns:p="http://www.springframework.org/schema/p"
+	   xmlns:tx="http://www.springframework.org/schema/tx"
+	   xmlns:context="http://www.springframework.org/schema/context"
+	   xmlns:mvc="http://www.springframework.org/schema/mvc"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+                http://www.springframework.org/schema/aop 
+                http://www.springframework.org/schema/aop/spring-aop-2.5.xsd
+                http://www.springframework.org/schema/tx 
+                http://www.springframework.org/schema/tx/spring-tx-2.5.xsd
+                http://www.springframework.org/schema/context
+                http://www.springframework.org/schema/context/spring-context.xsd 
+                http://www.springframework.org/schema/mvc 
+                http://www.springframework.org/schema/mvc/spring-mvc.xsd">
+	<!-- 组件扫描、注解配置 -->
+	<context:component-scan base-package="com.xutao.itrip.service"/>
+	<context:annotation-config />
+	
+	<!-- 加载properties配置文件 -->
+	<context:property-placeholder location="classpath:database.properties,classpath:sms.properties" />
+	
+	<!-- 加载properties配置文件 -->
+	<context:property-placeholder location="classpath:database.properties,classpath:sms.properties" />
+	<bean name="systemConfig" class="com.xutao.itrip.utils.SystemConfig">
+		<property name="smsAccountSid" value="${sms.accountSid}" />
+		<property name="smsAuthToken" value="${sms.authToken}" />
+		<property name="smsAppID" value="${sms.appID}" />
+		<property name="smsServerIP" value="${sms.serverIP}" />
+		<property name="smsServerPort" value="${sms.serverPort}" />
+	</bean>
+	
+	<!-- JNDI获取数据源(使用dbcp连接池) -->
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+		<property name="driverClassName" value="${mysql.driver}"/>
+		<property name="url" value="${mysql.url}"/>
+		<property name="username" value="${mysql.user}"/>
+		<property name="password" value="${mysql.password}"/>
+		<property name="initialSize" value="${mysql.initialSize}"/>
+		<property name="maxActive" value="${mysql.maxActive}"/>
+		<property name="maxIdle" value="${mysql.maxIdle}"/>
+		<property name="minIdle" value="${mysql.minIdle}"/>
+		<property name="maxWait" value="${mysql.maxWait}"/>
+		<property name="removeAbandoned" value="${mysql.removeAbandoned}"/>
+		<property name="removeAbandonedTimeout" value="${mysql.removeAbandonedTimeout}"/>
+		<property name= "testWhileIdle" value="true"/>
+		<property name= "timeBetweenEvictionRunsMillis" value="60000"/>
+		<property name= "testOnBorrow" value="false"/>
+		<property name= "testOnReturn" value="false"/>
+		<property name= "validationQuery" value="select 1"/>
+		<property name= "numTestsPerEvictionRun" value="${mysql.maxActive}"/>
+	</bean>
+
+	<!-- 配置mybatis SqlSessionFactoryBean -->
+	<bean id="sqlSessionFactoryBean" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="configLocation" value="classpath:mybatis-config.xml"/>
+	</bean>
+	
+	<!-- MyBatis和Spring集成使用MapperScanner -->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.xutao.itrip.mapper"/>
+	</bean>
+	
+	<!-- 事务管理   -->
+	<bean id="txManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource"/>
+	</bean>
+	
+	<tx:advice id="myAdvice" transaction-manager="txManager">
+		<tx:attributes>
+			<tx:method name="itriptx*"  propagation="REQUIRED" rollback-for="Exception"  />
+			<tx:method name="*" />
+		</tx:attributes>
+	</tx:advice>
+
+	<aop:aspectj-autoproxy/>
+	<aop:config proxy-target-class="true">
+		<aop:pointcut expression="execution(* *com.xutao.itrip.service.service..*(..))" id="transService"/>
+		<aop:advisor advice-ref="myAdvice" pointcut-ref="transService"/>
+	</aop:config>
+	
+	<!--redis配置 开始-->
+	<bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+		<property  name="maxActive"  value="${redis.maxActive}" />
+		<property  name="maxIdle"   value="${redis.maxIdle}" />
+		<property  name="maxWait"  value="${redis.maxWait}" />
+		<property  name="testOnBorrow"  value="true" />
+	</bean>
+	<!-- Config poolConfig, String host, int port, int timeout, String password, int database-->
+	<bean id="jedisPool" class="redis.clients.jedis.JedisPool" destroy-method="destroy" >
+		<constructor-arg ref="jedisPoolConfig"/>
+		<constructor-arg value="${redis.host}"/>
+		<constructor-arg value="${redis.port}"/>
+		<constructor-arg value="${redis.timeout}"/>
+		<constructor-arg value="${redis.pass}"/>
+		<constructor-arg value="${redis.default.db}"/>
+	</bean>
+	<bean id="redisAPI" class="com.xutao.itrip.utils.RedisAPI">
+		<property name="jedisPool" ref="jedisPool"/>
+	</bean>
+	
+	<import resource="applicationContext-mail.xml"/>
+</beans>
